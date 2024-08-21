@@ -1,0 +1,7 @@
+# python=3.8
+# torch1.10.0+cu113
+# torchvision0.11.0+cu113
+scikit-learn
+opencv-python
+scikit-image
+pandas

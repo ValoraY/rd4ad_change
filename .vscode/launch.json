@@ -5,10 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "resnet.py",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "/root/autodl-tmp/rd4ad_change",
+            "program": "./resnet.py",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "main.py",
             "type": "debugpy",
             "request": "launch",
-            "cwd": "/root/autodl-tmp/RD4AD",
+            "cwd": "/root/autodl-tmp/rd4ad_change",
             "program": "./main.py",
             "console": "integratedTerminal"
         },

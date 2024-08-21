@@ -248,6 +248,131 @@ class ResNet(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         return self._forward_impl(x)
 
+class ModifiedResNet(nn.Module):
+    def __init__(
+        self,
+        block: Type[Union[BasicBlock, Bottleneck]],
+        layers: List[int],
+        num_classes: int = 1000,
+        zero_init_residual: bool = False,
+        groups: int = 1,
+        width_per_group: int = 64,
+        replace_stride_with_dilation: Optional[List[bool]] = None,
+        norm_layer: Optional[Callable[..., nn.Module]] = None
+    ) -> None:
+        super(ModifiedResNet, self).__init__()
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+        self._norm_layer = norm_layer
+
+        self.inplanes = 64
+        self.dilation = 1
+        if replace_stride_with_dilation is None:
+            # each element in the tuple indicates if we should replace
+            # the 2x2 stride with a dilated convolution instead
+            replace_stride_with_dilation = [False, False, False]
+        if len(replace_stride_with_dilation) != 3:
+            raise ValueError("replace_stride_with_dilation should be None "
+                             "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
+        self.groups = groups
+        self.base_width = width_per_group
+        
+        # Replace the original 2D conv1 with 1D conv layers
+        # self.conv1_horizontal = nn.Conv1d(in_channels=3, out_channels=self.inplanes, kernel_size=7, stride=2, padding=3)
+        # self.conv1_vertical = nn.Conv1d(in_channels=3, out_channels=self.inplanes, kernel_size=7, stride=2, padding=3)
+
+        # Row-wise convolution: kernel size (1, k) for horizontal convolution
+        self.conv1_row = nn.Conv2d(in_channels=3, out_channels=self.inplanes, stride=2, kernel_size=(1, 7), padding=(0, 3))
+        # Column-wise convolution: kernel size (k, 1) for vertical convolution
+        self.conv1_col = nn.Conv2d(in_channels=3, out_channels=self.inplanes, stride=2, kernel_size=(7, 1), padding=(3, 0))
+
+
+        # Batch normalization and ReLU layers remain the same
+        self.bn1 = norm_layer(self.inplanes)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
+                                       dilate=replace_stride_with_dilation[0])
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
+                                       dilate=replace_stride_with_dilation[1])
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
+                                       dilate=replace_stride_with_dilation[2])
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(512 * block.expansion, num_classes)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+        
+        # Zero-initialize the last BN in each residual branch,
+        # so that the residual branch starts with zeros, and each residual block behaves like an identity.
+        # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
+        if zero_init_residual:
+            for m in self.modules():
+                if isinstance(m, Bottleneck):
+                    nn.init.constant_(m.bn3.weight, 0)  # type: ignore[arg-type]
+                elif isinstance(m, BasicBlock):
+                    nn.init.constant_(m.bn2.weight, 0)  # type: ignore[arg-type]
+    
+    def _make_layer(self, block: Type[Union[BasicBlock, Bottleneck]], planes: int, blocks: int,
+                    stride: int = 1, dilate: bool = False) -> nn.Sequential:
+        norm_layer = self._norm_layer
+        downsample = None
+        previous_dilation = self.dilation
+        if dilate:
+            self.dilation *= stride
+            stride = 1
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                conv1x1(self.inplanes, planes * block.expansion, stride),
+                norm_layer(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample, self.groups,
+                            self.base_width, previous_dilation, norm_layer))
+        self.inplanes = planes * block.expansion
+        for _ in range(1, blocks):
+            layers.append(block(self.inplanes, planes, groups=self.groups,
+                                base_width=self.base_width, dilation=self.dilation,
+                                norm_layer=norm_layer))
+
+        return nn.Sequential(*layers)
+
+    def _forward_impl(self, x: torch.Tensor) -> torch.Tensor: # x: torch.Size([16, 3, 224, 224])
+        
+        # Apply convolutions
+        x_row = self.conv1_row(x) # torch.Size([16, 64, 224, 224])
+        x_col = self.conv1_col(x) # torch.Size([16, 64, 224, 224])
+
+        x = x_row + x_col
+        
+        # Proceed with the original network
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        # Compute the feature layers
+        feature_a = self.layer1(x)
+        feature_b = self.layer2(feature_a)
+        feature_c = self.layer3(feature_b)
+        feature_d = self.layer4(feature_c)
+
+        # Return the same three feature layers as before
+        return [feature_a, feature_b, feature_c]
+
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self._forward_impl(x)
+
 
 def _resnet(
     arch: str,
@@ -559,6 +684,18 @@ def wide_resnet50_2(pretrained: bool = False, progress: bool = True, **kwargs: A
                    pretrained, progress, **kwargs), BN_layer(AttnBottleneck,3,**kwargs)
 
 
+def wide_resnet50_2_modified(pretrained=False, progress=True, **kwargs):
+    kwargs['width_per_group'] = 64 * 2
+    model = ModifiedResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
+    if pretrained:
+        state_dict = load_state_dict_from_url(model_urls['wide_resnet50_2'], progress=progress)
+        # Load only layers that are unchanged (you may need to filter some keys depending on your changes)
+        # Create a new state_dict that only includes matching keys
+        modified_state_dict = {k: v for k, v in state_dict.items() if k in model.state_dict() and 'conv1_' not in k}
+        # Load the modified state_dict into the model
+        model.load_state_dict(modified_state_dict, strict=False)
+    return model, BN_layer(AttnBottleneck,3,**kwargs)
+
 def wide_resnet101_2(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> ResNet:
     r"""Wide ResNet-101-2 model from
     `"Wide Residual Networks" <https://arxiv.org/pdf/1605.07146.pdf>`_.
@@ -575,3 +712,24 @@ def wide_resnet101_2(pretrained: bool = False, progress: bool = True, **kwargs: 
                    pretrained, progress, **kwargs), BN_layer(AttnBottleneck,3,**kwargs)
 
 
+if __name__ == '__main__':
+    input_tensor = torch.randn(16, 3, 224, 224)  # Example input: Batch size of 16, 3 channels, 224x224 image
+    # Example of how to use the model
+    print("==========wide_resnet50_2======")
+    model1, bn_layer1 = wide_resnet50_2(pretrained=True)
+    features1 = model1(input_tensor)
+    # Access the feature layers
+    feature_a1, feature_b1, feature_c1 = features1
+    print(feature_a1.shape, feature_b1.shape, feature_c1.shape)
+    print("+++++++++++++++++++++wide_resnet50_2 structure+++++++++++++++++++++")
+    print(model1)
+
+    # print(bn_layer1)
+    print("==========wide_resnet50_2_modified======")
+    model2, bn_layer2 = wide_resnet50_2_modified(pretrained=True)
+    features2 = model2(input_tensor)
+    # Access the feature layers
+    feature_a2, feature_b2, feature_c2 = features1
+    print(feature_a2.shape, feature_b2.shape, feature_c2.shape)
+    print("+++++++++++++++++++++wide_resnet50_2_modified structure+++++++++++++++++++++")
+    print(model2)

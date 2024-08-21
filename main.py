@@ -10,8 +10,8 @@ import numpy as np
 import random
 import os
 from torch.utils.data import DataLoader
-from resnet import resnet18, resnet34, resnet50, wide_resnet50_2
-from de_resnet import de_resnet18, de_resnet34, de_wide_resnet50_2, de_resnet50
+from resnet import resnet18, resnet34, resnet50, wide_resnet50_2, wide_resnet50_2_modified
+from de_resnet import de_resnet18, de_resnet34, de_wide_resnet50_2, de_resnet50, de_wide_resnet50_2_modified
 from dataset import MVTecDataset
 import torch.backends.cudnn as cudnn
 import argparse
@@ -60,7 +60,7 @@ def loss_concat(a, b):
 
 def train(_class_):
     print(_class_)
-    epochs = 200
+    epochs = 10
     learning_rate = 0.005
     batch_size = 16
     image_size = 256
@@ -82,11 +82,12 @@ def train(_class_):
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True)
     test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=1, shuffle=False)
 
-    encoder, bn = wide_resnet50_2(pretrained=True)
+    # encoder, bn = wide_resnet50_2(pretrained=True)
+    encoder, bn = wide_resnet50_2_modified(pretrained=True)
     encoder = encoder.to(device)
     bn = bn.to(device)
     encoder.eval()
-    decoder = de_wide_resnet50_2(pretrained=False)
+    decoder = de_wide_resnet50_2_modified(pretrained=False)
     decoder = decoder.to(device)
 
     optimizer = torch.optim.Adam(list(decoder.parameters())+list(bn.parameters()), lr=learning_rate, betas=(0.5,0.999))
