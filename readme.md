@@ -16,3 +16,7 @@ autodl: https://download.pytorch.org/models/wide_resnet50_2-95faca4d.pth => /roo
     
 4. Train and Test the Model    
     > python main.py
+
+5. results:
+    (1) make first conv1 (which achieves downsample from 224 to 112) of pretrained wide_Resnet50 (feature extracter) from Conv2d(k7x7,s2,p3) to row_Conv【Conv2d(k1x7,s(1,2),p(0,3))】 & col_Conv【Conv2d(k7x1,s(2,1),p(3,0))】 => fiber auroc:0.67 (epoch=250) => bad
+    
