@@ -278,13 +278,10 @@ class ModifiedResNet(nn.Module):
         self.base_width = width_per_group
         
         # Replace the original 2D conv1 with 1D conv layers
-        # self.conv1_horizontal = nn.Conv1d(in_channels=3, out_channels=self.inplanes, kernel_size=7, stride=2, padding=3)
-        # self.conv1_vertical = nn.Conv1d(in_channels=3, out_channels=self.inplanes, kernel_size=7, stride=2, padding=3)
-
         # Row-wise convolution: kernel size (1, k) for horizontal convolution
-        self.conv1_row = nn.Conv2d(in_channels=3, out_channels=self.inplanes, stride=2, kernel_size=(1, 7), padding=(0, 3))
+        self.conv1_row = nn.Conv2d(in_channels=3, out_channels=self.inplanes, stride=(1, 2), kernel_size=(1, 7), padding=(0, 3))
         # Column-wise convolution: kernel size (k, 1) for vertical convolution
-        self.conv1_col = nn.Conv2d(in_channels=3, out_channels=self.inplanes, stride=2, kernel_size=(7, 1), padding=(3, 0))
+        self.conv1_col = nn.Conv2d(in_channels=self.inplanes, out_channels=self.inplanes, stride=(2, 1), kernel_size=(7, 1), padding=(3, 0))
 
 
         # Batch normalization and ReLU layers remain the same
@@ -303,10 +300,7 @@ class ModifiedResNet(nn.Module):
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
         for m in self.modules():
-            if isinstance(m, nn.Conv1d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.Conv2d):
+            if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
@@ -350,10 +344,10 @@ class ModifiedResNet(nn.Module):
     def _forward_impl(self, x: torch.Tensor) -> torch.Tensor: # x: torch.Size([16, 3, 224, 224])
         
         # Apply convolutions
-        x_row = self.conv1_row(x) # torch.Size([16, 64, 224, 224])
-        x_col = self.conv1_col(x) # torch.Size([16, 64, 224, 224])
+        x_row = self.conv1_row(x) # torch.Size([16, 64, 224, 112])
+        x_col = self.conv1_col(x_row) # torch.Size([16, 64, 112, 112])
 
-        x = x_row + x_col
+        x = x_col
         
         # Proceed with the original network
         x = self.bn1(x)

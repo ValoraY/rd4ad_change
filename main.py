@@ -87,6 +87,7 @@ def train(_class_):
     encoder = encoder.to(device)
     bn = bn.to(device)
     encoder.eval()
+    # decoder = de_wide_resnet50_2(pretrained=False)
     decoder = de_wide_resnet50_2_modified(pretrained=False)
     decoder = decoder.to(device)
 
