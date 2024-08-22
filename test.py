@@ -117,7 +117,10 @@ def test(_class_):
     data_transform, gt_transform = get_data_transforms(256, 256)
     # test_path = '../mvtec/' + _class_
     # ckp_path = './checkpoints/' + 'rm_1105_wres50_ff_mm_' + _class_ + '.pth'
-    test_path = '/root/autodl-fs/MVTec/' + _class_
+    # AUTODL
+    # test_path = '/root/autodl-fs/MVTec/' + _class_
+    # VIVI4090
+    test_path = '/var/dataset/MVTec_AD/' + _class_
     ckp_path = './checkpoints/' + 'wres50_'+_class_+'.pth'
     test_data = MVTecDataset(root=test_path, transform=data_transform, gt_transform=gt_transform, phase="test")
     test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=1, shuffle=False)
@@ -363,7 +366,7 @@ def compute_pro(masks: ndarray, amaps: ndarray, num_th: int = 200) -> None:
     assert isinstance(num_th, int), "type(num_th) must be int"
 
     df = pd.DataFrame([], columns=["pro", "fpr", "threshold"])
-    binary_amaps = np.zeros_like(amaps, dtype=np.bool)
+    binary_amaps = np.zeros_like(amaps, dtype=bool)
 
     min_th = amaps.min()
     max_th = amaps.max()

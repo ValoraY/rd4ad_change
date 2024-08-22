@@ -27,6 +27,15 @@
             "cwd": "/root/autodl-tmp/RD4AD",
             "program": "./test_huawei.py",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "main_huawei.py",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "/data/xjingyu/PROJECTS/rd4ad_change",
+            "program": "./main_huawei.py",
+            "console": "integratedTerminal",
+            "python": "/home/xjingyu/anaconda3/envs/rd4ad_change/bin/python"
         }
     ]
 }

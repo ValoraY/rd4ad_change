@@ -20,6 +20,9 @@ import argparse
 from test import evaluation, visualization, test
 from torch.nn import functional as F
 
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
@@ -62,10 +65,10 @@ def loss_concat(a, b):
 
 def train(_class_):
     print(_class_)
-    epochs = 500
+    epochs = 200
     learning_rate = 0.005
-    batch_size = 32
-    image_size = 256
+    batch_size = 8
+    image_size = 512
         
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(device)
@@ -73,8 +76,12 @@ def train(_class_):
     data_transform, gt_transform = get_data_transforms(image_size, image_size)
     # train_path = './mvtec/' + _class_ + '/train'
     # test_path = './mvtec/' + _class_
-    train_path = '/root/autodl-fs/DATASET_HUAWEI/' + _class_ + '/train'
-    test_path = '/root/autodl-fs/DATASET_HUAWEI/' + _class_
+    # train_path = '/root/autodl-fs/DATASET_HUAWEI/' + _class_ + '/train'
+    # test_path = '/root/autodl-fs/DATASET_HUAWEI/' + _class_
+    # vivi4090
+    # /var/dataset/DATASET_HUAWEI/
+    train_path = '/var/dataset/DATASET_HUAWEI/' + _class_ + '/train'
+    test_path = '/var/dataset/DATASET_HUAWEI/' + _class_
     ckp_path = './checkpoints/' + 'wres50_'+_class_+'.pth'
     if not os.path.exists(os.path.dirname(ckp_path)):
         os.makedirs(os.path.dirname(ckp_path))
